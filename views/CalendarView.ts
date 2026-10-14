@@ -13,6 +13,7 @@ export class CalendarView extends ItemView {
     private store: DataStore;
     private onDateClick: (date: string) => void;
     private onStartWorkout: () => void;
+    private onOpenStats: () => void;
     private currentYear: number;
     private currentMonth: number;
 
@@ -20,12 +21,14 @@ export class CalendarView extends ItemView {
         leaf: WorkspaceLeaf,
         store: DataStore,
         onDateClick: (date: string) => void,
-        onStartWorkout: () => void
+        onStartWorkout: () => void,
+        onOpenStats: () => void
     ) {
         super(leaf);
         this.store = store;
         this.onDateClick = onDateClick;
         this.onStartWorkout = onStartWorkout;
+        this.onOpenStats = onOpenStats;
 
         const today = new Date();
         this.currentYear = today.getFullYear();
@@ -140,6 +143,11 @@ export class CalendarView extends ItemView {
             text: "Today",
             cls: "gym-calendar-today-btn",
         });
+        const statsBtn = footer.createEl("button", {
+            text: "📊 Statistics",
+            cls: "gym-calendar-today-btn",
+        });
+        statsBtn.onclick = () => this.onOpenStats();
         todayBtn.onclick = () => {
             const today = new Date();
             this.currentYear = today.getFullYear();

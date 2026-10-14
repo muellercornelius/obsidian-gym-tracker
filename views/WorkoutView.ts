@@ -23,6 +23,8 @@ export class WorkoutView extends ItemView {
     private exerciseNotes: Map<string, string> = new Map();
     // exerciseId → (setNumber → { reps, weight })
     private todayData: Map<string, Map<number, { reps: number; weight: number }>> = new Map();
+    private skippedExercises: Set<string> = new Set();
+    private skippedSets: Map<string, Set<number>> = new Map();
     private isDeleted: boolean = false;
     private saveTimeout: number | null = null;
     private saveChain: Promise<void> = Promise.resolve();
@@ -88,6 +90,8 @@ export class WorkoutView extends ItemView {
         this.sessionNote = "";
         this.exerciseNotes = new Map();
         this.todayData = new Map();
+        this.skippedExercises = new Set();
+        this.skippedSets = new Map();
 
         // Title
         container.createEl("h2", {
@@ -184,6 +188,11 @@ export class WorkoutView extends ItemView {
                 setMap.set(set.setNumber, { reps: set.reps, weight: set.weight });
             }
             this.todayData.set(ex.templateExerciseId, setMap);
+            if (ex.skipped) this.skippedExercises.add(ex.templateExerciseId);
+            const skipped = ex.sets.filter(s => s.skipped).map(s => s.setNumber);
+            if (skipped.length > 0) {
+                this.skippedSets.set(ex.templateExerciseId, new Set(skipped));
+            }
             if (ex.note) {
                 this.exerciseNotes.set(ex.templateExerciseId, ex.note);
             }
@@ -283,6 +292,23 @@ export class WorkoutView extends ItemView {
         const titleRow = exDiv.createDiv("gym-exercise-title-row");
         titleRow.createEl("h3", { text: `🏋️ ${tplEx.name}`, cls: "gym-exercise-name" });
 
+        const skipExBtn = titleRow.createEl("button", { cls: "gym-skip-btn gym-skip-exercise-btn" });
+        const refreshExSkip = () => {
+            const skipped = this.skippedExercises.has(tplEx.id);
+            exDiv.toggleClass("gym-skipped", skipped);
+            skipExBtn.setText(skipped ? "↩ Restore exercise" : "✕ Skip exercise");
+        };
+        skipExBtn.onclick = () => {
+            if (this.skippedExercises.has(tplEx.id)) {
+                this.skippedExercises.delete(tplEx.id);
+            } else {
+                this.skippedExercises.add(tplEx.id);
+            }
+            refreshExSkip();
+            this.scheduleAutoSave();
+        };
+        refreshExSkip();
+
         // Dataset tags
         if (tplEx.category || tplEx.equipment || tplEx.target) {
             const tagsDiv = titleRow.createDiv("gym-exercise-tags");
@@ -327,7 +353,7 @@ export class WorkoutView extends ItemView {
         const headers = [
             "Set", "Reps (tpl)", "Reps (last)", "Reps",
             `${w} (tpl)`, `${w} (last)`, w,
-            "Rest",
+            "Rest", "",
         ];
         for (const h of headers) {
             tr.createEl("th", { text: h });
@@ -407,6 +433,29 @@ export class WorkoutView extends ItemView {
                 text: this.formatRest(tSet.restSeconds),
                 cls: "gym-cell-template",
             });
+
+            // skip / restore this set
+            const skipBtn = tr.createEl("td", "gym-cell-skip").createEl("button", { cls: "gym-skip-btn" });
+            const refreshSkip = () => {
+                const skipped = this.skippedSets.get(tplEx.id)?.has(sn) ?? false;
+                tr.toggleClass("gym-set-skipped", skipped);
+                repInput.disabled = skipped;
+                kgInput.disabled = skipped;
+                skipBtn.setText(skipped ? "↩" : "✕");
+                skipBtn.setAttr("title", skipped ? "Restore set" : "Skip set");
+            };
+            skipBtn.onclick = () => {
+                let skippedSet = this.skippedSets.get(tplEx.id);
+                if (!skippedSet) {
+                    skippedSet = new Set<number>();
+                    this.skippedSets.set(tplEx.id, skippedSet);
+                }
+                if (skippedSet.has(sn)) skippedSet.delete(sn);
+                else skippedSet.add(sn);
+                refreshSkip();
+                this.scheduleAutoSave();
+            };
+            refreshSkip();
         }
     }
 
@@ -458,19 +507,23 @@ export class WorkoutView extends ItemView {
             const setMap: Map<number, { reps: number; weight: number }> = this.todayData.get(tplEx.id) || new Map<number, { reps: number; weight: number }>();
             const sets: SessionSet[] = tplEx.sets.map(tSet => {
                 const todayEntry: { reps: number; weight: number } | undefined = setMap.get(tSet.setNumber);
-                return {
+                const set: SessionSet = {
                     setNumber: tSet.setNumber,
                     reps: todayEntry?.reps ?? tSet.reps,
                     weight: todayEntry?.weight ?? tSet.weight,
                 };
+                if (this.skippedSets.get(tplEx.id)?.has(tSet.setNumber)) set.skipped = true;
+                return set;
             });
 
-            return {
+            const exercise: SessionExercise = {
                 templateExerciseId: tplEx.id,
                 name: tplEx.name,
                 note: this.exerciseNotes.get(tplEx.id) || "",
                 sets,
             };
+            if (this.skippedExercises.has(tplEx.id)) exercise.skipped = true;
+            return exercise;
         });
 
         const session: WorkoutSession = {

@@ -33,6 +33,7 @@ export interface SessionSet {
     setNumber: number;
     reps: number;           // "rep today"
     weight: number;         // "kg today"
+    skipped?: boolean;      // not performed
 }
 
 export interface SessionExercise {
@@ -40,6 +41,7 @@ export interface SessionExercise {
     name: string;
     note: string;
     sets: SessionSet[];
+    skipped?: boolean;      // whole exercise not performed
 }
 
 export interface WorkoutSession {
@@ -57,6 +59,7 @@ export interface WorkoutSession {
 export interface GymSettings {
     weekStartDay: 'monday' | 'sunday';
     weightUnit: 'kg' | 'lbs';
+    bodyWeight: number;         // in weightUnit; 0 = not set
     vaultFolder: string;        // e.g. ".gym-tracker" to hide, "gym-tracker" to show
     vaultFileName: string;      // e.g. "data" (no extension)
     showInGraph: boolean;       // true = .md frontmatter, false = .json

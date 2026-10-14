@@ -4,6 +4,7 @@ import { Plugin, normalizePath, Notice } from "obsidian";
 const DEFAULT_SETTINGS: GymSettings = {
     weekStartDay: 'monday',
     weightUnit: 'kg',
+    bodyWeight: 0,
     vaultFolder: '.gym-tracker',
     vaultFileName: 'data',
     showInGraph: false,
@@ -237,8 +238,8 @@ export class DataStore {
             const ex = session.exercises.find(
                 e => e.templateExerciseId === templateExerciseId
             );
-            if (ex) {
-                const set = ex.sets.find(s => s.setNumber === setNumber);
+            if (ex && !ex.skipped) {
+                const set = ex.sets.find(s => s.setNumber === setNumber && !s.skipped);
                 if (set) {
                     return { reps: set.reps, weight: set.weight };
                 }
@@ -264,9 +265,9 @@ export class DataStore {
             const ex = session.exercises.find(
                 e => e.templateExerciseId === templateExerciseId
             );
-            if (ex) {
+            if (ex && !ex.skipped) {
                 for (const set of ex.sets) {
-                    if (!result.has(set.setNumber)) {
+                    if (!set.skipped && !result.has(set.setNumber)) {
                         result.set(set.setNumber, {
                             reps: set.reps,
                             weight: set.weight,
@@ -302,6 +303,7 @@ export class DataStore {
 
     private convertWeights(from: 'kg' | 'lbs', to: 'kg' | 'lbs'): void {
         const factor = to === 'lbs' ? KG_TO_LBS : (1 / KG_TO_LBS);
+        this.data.settings.bodyWeight = Math.round((this.data.settings.bodyWeight ?? 0) * factor * 10) / 10;
 
         // Convert template exercise sets
         for (const tpl of this.data.templates) {

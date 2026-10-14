@@ -3,6 +3,7 @@ import { confirmAction } from "./utils/ConfirmModal";
 import { DataStore } from "./data/DataStore";
 import { CalendarView, CALENDAR_VIEW_TYPE } from "./views/CalendarView";
 import { WorkoutView, WORKOUT_VIEW_TYPE } from "./views/WorkoutView";
+import { StatsView, STATS_VIEW_TYPE } from "./views/StatsView";
 import { WorkoutTemplate, TemplateExercise } from "./types";
 import { searchExercises } from "./data/exerciseDataset";
 import { todayStr } from "./utils/calendar";
@@ -22,10 +23,16 @@ export default class GymTrackerPlugin extends Plugin {
                     leaf,
                     this.store,
                     (date: string) => { void this.openWorkoutView(date); },
-                    () => { void this.openWorkoutView(todayStr()); }
+                    () => { void this.openWorkoutView(todayStr()); },
+                    () => { void this.activateStatsView(); }
                 );
                 return view;
             }
+        );
+
+        this.registerView(
+            STATS_VIEW_TYPE,
+            (leaf: WorkspaceLeaf) => new StatsView(leaf, this.store, () => { void this.activateCalendarView(); })
         );
 
         // Register workout view
@@ -44,6 +51,12 @@ export default class GymTrackerPlugin extends Plugin {
             id: "open-gym-calendar",
             name: "Open gym calendar",
             callback: () => { void this.activateCalendarView(); },
+        });
+
+        this.addCommand({
+            id: "open-gym-statistics",
+            name: "Open gym statistics",
+            callback: () => { void this.activateStatsView(); },
         });
 
         this.addCommand({
@@ -82,6 +95,15 @@ export default class GymTrackerPlugin extends Plugin {
             const view = leaf.view as CalendarView;
             view.refresh();
         }
+    }
+
+    async activateStatsView(): Promise<void> {
+        const { workspace } = this.app;
+        // Reuse the current tab so Calendar and Statistics link back and forth
+        const leaf = workspace.getLeavesOfType(STATS_VIEW_TYPE)[0] ?? workspace.getLeaf(false);
+        await leaf.setViewState({ type: STATS_VIEW_TYPE, active: true });
+        await workspace.revealLeaf(leaf);
+        (leaf.view as StatsView).refresh();
     }
 
     // ── Workout view ──
@@ -187,6 +209,21 @@ class GymTrackerSettingTab extends PluginSettingTab {
                         settings.weightUnit = value as 'kg' | 'lbs';
                         await this.plugin.store.saveSettings(settings);
                         this.refreshTab();
+                    });
+            });
+
+        // Body weight
+        new Setting(containerEl)
+            .setName("Body weight")
+            .setDesc("Added to bodyweight exercises in the statistics (0 = ignore)")
+            .addText(text => {
+                text
+                    .setValue(settings.bodyWeight ? String(settings.bodyWeight) : '')
+                    .setPlaceholder('0')
+                    .onChange(async (value: string) => {
+                        const n = parseFloat(value.replace(',', '.'));
+                        settings.bodyWeight = Number.isFinite(n) && n > 0 ? n : 0;
+                        await this.plugin.store.saveSettings(settings);
                     });
             });
 
