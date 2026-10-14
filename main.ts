@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, SettingDefinitionItem, SettingGroup, WorkspaceLeaf } from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from "obsidian";
 import { confirmAction } from "./utils/ConfirmModal";
 import { DataStore } from "./data/DataStore";
 import { CalendarView, CALENDAR_VIEW_TYPE } from "./views/CalendarView";
@@ -122,13 +122,7 @@ class GymTrackerSettingTab extends PluginSettingTab {
     }
 
     refreshTab(): void {
-        const self = this as unknown as Record<string, unknown>;
-        if (typeof self.update === "function") {
-            (self.update as () => void)();
-        } else {
-            const selfDisplay = this as unknown as { display: () => void };
-            selfDisplay.display();
-        }
+        this.display();
     }
 
     /** Schedule a debounced template save. Every call resets the timer. */
@@ -156,173 +150,8 @@ class GymTrackerSettingTab extends PluginSettingTab {
         await this.plugin.store.saveTemplate(tpl);
     }
 
-    getSettingDefinitions(): SettingDefinitionItem[] {
-        return [
-            // Week start day
-            {
-                name: "Week starts on",
-                desc: "Calendar week start day",
-                render: (setting: Setting) => {
-                    const settings = this.plugin.store.getSettings();
-                    setting.addDropdown(dropdown => {
-                        dropdown
-                            .addOption('monday', 'Monday')
-                            .addOption('sunday', 'Sunday')
-                            .setValue(settings.weekStartDay)
-                            .onChange(async (value: string) => {
-                                settings.weekStartDay = value as 'monday' | 'sunday';
-                                await this.plugin.store.saveSettings(settings);
-                            });
-                    });
-                },
-            },
-
-            // Weight unit
-            {
-                name: "Weight unit",
-                desc: "Switching automatically converts all existing weight data",
-                render: (setting: Setting) => {
-                    const settings = this.plugin.store.getSettings();
-                    setting.addDropdown(dropdown => {
-                        dropdown
-                            .addOption('kg', 'Kilograms (kg)')
-                            .addOption('lbs', 'Pounds (lbs)')
-                            .setValue(settings.weightUnit)
-                            .onChange(async (value: string) => {
-                                settings.weightUnit = value as 'kg' | 'lbs';
-                                await this.plugin.store.saveSettings(settings);
-                                this.refreshTab(); // refresh to update labels
-                            });
-                    });
-                },
-            },
-
-
-
-            // Vault folder
-            {
-                name: "Vault folder",
-                desc: "Folder in your vault. Prefix with . to hide from file explorer (e.g. .gym-tracker)",
-                render: (setting: Setting) => {
-                    const settings = this.plugin.store.getSettings();
-                    setting.addText(text => {
-                        text
-                            .setValue(settings.vaultFolder)
-                            .setPlaceholder('.gym-tracker')
-                            .onChange(async (value: string) => {
-                                settings.vaultFolder = value || '.gym-tracker';
-                                await this.plugin.store.saveSettings(settings);
-                            });
-                    });
-                },
-            },
-
-            // File name
-            {
-                name: "File name",
-                desc: "File name without extension. e.g. data",
-                render: (setting: Setting) => {
-                    const settings = this.plugin.store.getSettings();
-                    setting.addText(text => {
-                        text
-                            .setValue(settings.vaultFileName)
-                            .setPlaceholder('data')
-                            .onChange(async (value: string) => {
-                                settings.vaultFileName = value || 'data';
-                                await this.plugin.store.saveSettings(settings);
-                            });
-                    });
-                },
-            },
-
-            // Show in graph
-            {
-                name: "Show in graph",
-                desc: "Stores as .md with frontmatter so file appears in graph view",
-                render: (setting: Setting) => {
-                    const settings = this.plugin.store.getSettings();
-                    setting.addToggle(toggle => {
-                        toggle
-                            .setValue(settings.showInGraph)
-                            .onChange(async (value: boolean) => {
-                                settings.showInGraph = value;
-                                await this.plugin.store.saveSettings(settings);
-                            });
-                    });
-                },
-            },
-
-            // Clear all data
-            {
-                name: "Clear all data",
-                desc: "Delete all templates and workout sessions. This cannot be undone.",
-                render: (setting: Setting) => {
-                    setting.addButton(btn => {
-                        btn.setButtonText("Clear All Data");
-                        const destBtn = btn as unknown as { setDestructive?: () => void, setWarning: () => void };
-                        if (typeof destBtn.setDestructive === "function") {
-                            destBtn.setDestructive();
-                        } else {
-                            destBtn.setWarning();
-                        }
-                        btn.onClick(async () => {
-                                if (await confirmAction(this.app, "Delete ALL templates and workout data? This cannot be undone.")) {
-                                    await this.plugin.store.clearAllData();
-                                    this.refreshTab();
-                                }
-                            });
-                    });
-                },
-            },
-
-            // ═══ Templates ═══
-            {
-                type: 'group' as const,
-                heading: "🏋️ Templates",
-                cls: "gym-settings",
-            },
-
-            // Templates section (imperative render)
-            {
-                name: "",
-                render: (_setting: Setting, group: SettingGroup) => {
-                    const container = (group as unknown as { listEl: HTMLElement }).listEl;
-
-                    const templates = this.plugin.store.getTemplates();
-
-                    if (templates.length === 0) {
-                        container.createEl("p", {
-                            text: "No templates yet. Create your first workout template below.",
-                            cls: "setting-item-description",
-                        });
-                    }
-
-                    // Render each template
-                    for (const tpl of templates) {
-                        this.renderTemplateCard(container, tpl);
-                    }
-
-                    // "Add Template" button
-                    const addDiv = container.createDiv("gym-settings-add");
-                    const addBtn = addDiv.createEl("button", {
-                        text: "+ New Template",
-                        cls: "gym-settings-add-btn",
-                    });
-                    addBtn.onclick = async () => {
-                        const tpl: WorkoutTemplate = {
-                            id: this.plugin.store.generateId(),
-                            name: "New Template",
-                            exercises: [],
-                        };
-                        await this.plugin.store.saveTemplate(tpl);
-                        this.refreshTab();
-                    };
-                },
-            },
-        ];
-    }
-
-    // Fallback for Obsidian < 1.13.0 (before getSettingDefinitions was introduced)
+    // Render plugin settings using the imperative API.
+    // This keeps the settings UI compatible with the plugin's supported Obsidian versions.
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
