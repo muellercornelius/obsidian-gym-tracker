@@ -20,6 +20,13 @@ export function getExerciseById(id: string): ExerciseInfo | undefined {
 }
 
 /**
+ * All exercises in the dataset.
+ */
+export function getAllExercises(): ExerciseInfo[] {
+    return dataset;
+}
+
+/**
  * Search exercises by name (case-insensitive substring match).
  * Returns up to `limit` results sorted by match quality.
  */

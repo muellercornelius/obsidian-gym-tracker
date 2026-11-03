@@ -33,7 +33,7 @@ export interface SessionSet {
     setNumber: number;
     reps: number;           // "rep today"
     weight: number;         // "kg today"
-    skipped?: boolean;      // not performed
+    skipped?: boolean;      // not checked off → not tracked
 }
 
 export interface SessionExercise {
@@ -41,7 +41,14 @@ export interface SessionExercise {
     name: string;
     note: string;
     sets: SessionSet[];
-    skipped?: boolean;      // whole exercise not performed
+    skipped?: boolean;      // no set checked off → exercise not tracked
+    // Dataset metadata, so exercises added during a workout keep their tags
+    datasetId?: string;
+    category?: string;
+    equipment?: string;
+    target?: string;
+    muscleGroup?: string;
+    secondaryMuscles?: string[];
 }
 
 export interface WorkoutSession {
@@ -51,7 +58,8 @@ export interface WorkoutSession {
     templateName: string;   // denormalized for display
     note: string;
     exercises: SessionExercise[];
-    completedAt: string;    // ISO timestamp
+    completedAt: string;    // ISO timestamp of the last change
+    startedAt?: string;     // ISO timestamp of the first save
 }
 
 // ── Plugin settings ──

@@ -250,11 +250,13 @@ export class DataStore {
     }
 
     /**
-     * Get a map of setNumber → LastSetData for all sets in a given exercise.
+     * Get a map of setNumber → LastSetData for all sets in a given exercise
+     * (matched by id, or by name when given).
      */
     getLastSetDataForExercise(
         templateExerciseId: string,
-        beforeDate?: string
+        beforeDate?: string,
+        name?: string
     ): Map<number, LastSetData> {
         const result = new Map<number, LastSetData>();
         const sessions = Object.values(this.data.sessions)
@@ -262,10 +264,11 @@ export class DataStore {
             .sort((a, b) => b.date.localeCompare(a.date));
 
         for (const session of sessions) {
+            // Fall back to the name so exercises added ad hoc still find their history
             const ex = session.exercises.find(
-                e => e.templateExerciseId === templateExerciseId
+                e => !e.skipped && (e.templateExerciseId === templateExerciseId || (!!name && e.name === name))
             );
-            if (ex && !ex.skipped) {
+            if (ex) {
                 for (const set of ex.sets) {
                     if (!set.skipped && !result.has(set.setNumber)) {
                         result.set(set.setNumber, {
